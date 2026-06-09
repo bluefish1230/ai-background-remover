@@ -212,18 +212,128 @@ function publishCanvasResult(canvas, message) {
 }
 
 function prepareEditableResult(blob) {
-  const image = new Image();
-  const url = URL.createObjectURL(blob);
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(blob);
 
-  image.onload = () => {
-    editableResultCanvas.width = sourceCanvas.width || image.naturalWidth;
-    editableResultCanvas.height = sourceCanvas.height || image.naturalHeight;
-    editableResultCtx.clearRect(0, 0, editableResultCanvas.width, editableResultCanvas.height);
-    editableResultCtx.drawImage(image, 0, 0, editableResultCanvas.width, editableResultCanvas.height);
-    URL.revokeObjectURL(url);
-  };
+    image.onload = () => {
+      editableResultCanvas.width = sourceCanvas.width || image.naturalWidth;
+      editableResultCanvas.height = sourceCanvas.height || image.naturalHeight;
+      editableResultCtx.clearRect(0, 0, editableResultCanvas.width, editableResultCanvas.height);
+      editableResultCtx.drawImage(image, 0, 0, editableResultCanvas.width, editableResultCanvas.height);
+      URL.revokeObjectURL(url);
+      resolve();
+    };
 
-  image.src = url;
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("無法讀取去背結果。"));
+    };
+
+    image.src = url;
+  });
+}
+
+function getMaskBounds(maskData, width, height) {
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (maskData[(y * width + x) * 4 + 3] > 0) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  if (maxX < 0) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+function focusResultWithBrushMask() {
+  if (!maskHasPaint || !editableResultCanvas.width || !editableResultCanvas.height) return false;
+
+  const width = editableResultCanvas.width;
+  const height = editableResultCanvas.height;
+  const resultImage = editableResultCtx.getImageData(0, 0, width, height);
+  const maskImage = maskCtx.getImageData(0, 0, width, height);
+  const maskBounds = getMaskBounds(maskImage.data, width, height);
+
+  if (!maskBounds) return false;
+
+  const visited = new Uint8Array(width * height);
+  const keep = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  const resultData = resultImage.data;
+  const maskData = maskImage.data;
+  const alphaThreshold = 12;
+
+  for (let start = 0; start < width * height; start += 1) {
+    if (visited[start] || resultData[start * 4 + 3] <= alphaThreshold) continue;
+
+    let head = 0;
+    let tail = 0;
+    let touchesMask = false;
+    const componentStart = tail;
+    queue[tail] = start;
+    tail += 1;
+    visited[start] = 1;
+
+    while (head < tail) {
+      const index = queue[head];
+      head += 1;
+
+      if (maskData[index * 4 + 3] > 0) touchesMask = true;
+
+      const x = index % width;
+      const y = Math.floor(index / width);
+      const neighbors = [
+        x > 0 ? index - 1 : -1,
+        x < width - 1 ? index + 1 : -1,
+        y > 0 ? index - width : -1,
+        y < height - 1 ? index + width : -1,
+      ];
+
+      for (const next of neighbors) {
+        if (next < 0 || visited[next] || resultData[next * 4 + 3] <= alphaThreshold) continue;
+        visited[next] = 1;
+        queue[tail] = next;
+        tail += 1;
+      }
+    }
+
+    if (touchesMask) {
+      for (let i = componentStart; i < tail; i += 1) {
+        keep[queue[i]] = 1;
+      }
+    }
+  }
+
+  for (let index = 0; index < width * height; index += 1) {
+    if (!keep[index]) resultData[index * 4 + 3] = 0;
+  }
+
+  editableResultCtx.putImageData(resultImage, 0, 0);
+
+  const restoredCanvas = document.createElement("canvas");
+  restoredCanvas.width = width;
+  restoredCanvas.height = height;
+  const restoredCtx = restoredCanvas.getContext("2d");
+  restoredCtx.drawImage(sourceCanvas, 0, 0);
+  restoredCtx.globalCompositeOperation = "destination-in";
+  restoredCtx.drawImage(maskCanvas, 0, 0);
+
+  editableResultCtx.save();
+  editableResultCtx.globalCompositeOperation = "source-over";
+  editableResultCtx.drawImage(restoredCanvas, 0, 0);
+  editableResultCtx.restore();
+
+  return true;
 }
 
 function loadFile(file) {
@@ -263,9 +373,15 @@ async function removeImageBackground() {
   try {
     const startedAt = performance.now();
     const blob = await removeBackground(selectedFile, modelConfig);
-    prepareEditableResult(blob);
+    await prepareEditableResult(blob);
+    const focusedWithBrush = focusResultWithBrushMask();
     const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
-    publishBlobResult(blob, `去背完成，用時 ${seconds} 秒。若抓錯主體，請用「補回 / 擦除」筆刷修正。`);
+    if (focusedWithBrush) {
+      publishCanvasResult(editableResultCanvas, `已依照筆刷標記保留物件，用時 ${seconds} 秒。可再用「補回 / 擦除」細修。`);
+      clearMask();
+    } else {
+      publishBlobResult(blob, `去背完成，用時 ${seconds} 秒。若抓錯主體，請用「補回 / 擦除」筆刷修正。`);
+    }
   } catch (error) {
     console.error(error);
     const message = error instanceof Error ? error.message : String(error);
