@@ -18,7 +18,7 @@ let sourceUrl = null;
 let resultUrl = null;
 
 const modelConfig = {
-  publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.6.0/dist/",
+  publicPath: "./background-removal-data/",
   debug: true,
   progress: (_key, current, total) => {
     if (!total) return;

@@ -10,7 +10,7 @@
     <title>AI 圖片去背工具</title>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link rel="preconnect" href="https://esm.sh" />
-    <link rel="stylesheet" href="./styles.css?v=20260609-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260609-4" />
   </head>
   <body>
     <main class="app-shell">
@@ -96,7 +96,7 @@
     </main>
 
     <script>
-      const coiVersion = "20260609-3";
+      const coiVersion = "20260609-4";
       const coiReloadKey = `coi-serviceworker-reloaded-${coiVersion}`;
 
       if (window.navigator && "serviceWorker" in window.navigator && !window.crossOriginIsolated) {
@@ -113,6 +113,6 @@
         sessionStorage.removeItem(coiReloadKey);
       }
     </script>
-    <script type="module" src="./app.js?v=20260609-3"></script>
+    <script type="module" src="./app.js?v=20260609-4"></script>
   </body>
 </html>

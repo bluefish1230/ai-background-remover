@@ -27,10 +27,18 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
+      - name: Prepare static site
+        run: |
+          mkdir -p _site/background-removal-data
+          cp index.html styles.css app.js coi-serviceworker.js README.md package.json server.js start-local.bat _site/
+          curl -L "https://staticimgly.com/@imgly/background-removal-data/1.6.0/package.tgz" -o background-removal-data.tgz
+          tar -xzf background-removal-data.tgz
+          cp -R package/dist/* _site/background-removal-data/
+
       - name: Upload static files
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "."
+          path: "_site"
 
       - name: Deploy to GitHub Pages
         id: deployment
