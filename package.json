@@ -1,0 +1,11 @@
+{
+  "name": "ai-background-remover",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "node -e \"console.log('Static site: no build step needed')\""
+  }
+}

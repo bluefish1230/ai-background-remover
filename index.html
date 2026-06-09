@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="線上 AI 圖片去背工具，在瀏覽器中移除背景並下載透明 PNG。"
+    />
+    <title>AI 圖片去背工具</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="preconnect" href="https://esm.sh" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Browser AI Background Remover</p>
+          <h1 id="page-title">AI 圖片去背工具</h1>
+          <p class="lede">上傳照片後自動移除背景，處理完成即可下載透明 PNG。</p>
+        </div>
+        <div class="hero-preview" aria-hidden="true">
+          <div class="checker preview-board">
+            <div class="sample-orbit"></div>
+            <div class="sample-product"></div>
+            <div class="sample-shadow"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace" aria-label="圖片去背工作區">
+        <div class="tool-panel">
+          <label class="drop-zone" for="image-input">
+            <input id="image-input" type="file" accept="image/png,image/jpeg,image/webp" />
+            <span class="drop-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img">
+                <path d="M12 3v10m0-10 4 4m-4-4-4 4" />
+                <path d="M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3" />
+              </svg>
+            </span>
+            <span class="drop-title">拖曳圖片到這裡，或點擊上傳</span>
+            <span class="drop-subtitle">支援 JPG、PNG、WebP，建議單張 10MB 以內</span>
+          </label>
+
+          <div class="actions">
+            <button class="primary-button" id="remove-button" type="button" disabled>
+              <span class="button-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img">
+                  <path d="m9 12 2 2 4-5" />
+                  <path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+              </span>
+              開始去背
+            </button>
+            <a class="secondary-button disabled" id="download-link" download="background-removed.png">
+              <span class="button-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img">
+                  <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
+                  <path d="M5 21h14" />
+                </svg>
+              </span>
+              下載 PNG
+            </a>
+          </div>
+
+          <div class="status" id="status" role="status" aria-live="polite">
+            請先選擇一張圖片。
+          </div>
+        </div>
+
+        <div class="result-grid">
+          <article class="image-pane">
+            <div class="pane-heading">
+              <h2>原始圖片</h2>
+              <span id="file-meta">尚未上傳</span>
+            </div>
+            <div class="image-stage">
+              <img id="source-preview" alt="原始圖片預覽" hidden />
+              <div class="empty-state" id="source-empty">等待圖片</div>
+            </div>
+          </article>
+
+          <article class="image-pane">
+            <div class="pane-heading">
+              <h2>透明背景</h2>
+              <span id="result-meta">尚未處理</span>
+            </div>
+            <div class="image-stage checker">
+              <img id="result-preview" alt="去背結果預覽" hidden />
+              <div class="empty-state" id="result-empty">結果會顯示在這裡</div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

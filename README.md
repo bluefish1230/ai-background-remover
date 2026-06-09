@@ -1,0 +1,30 @@
+# AI 圖片去背工具
+
+一個可部署到 GitHub Pages 或 Zeabur 的線上 AI 去背工具。圖片在瀏覽器端處理，完成後可以下載透明 PNG。
+
+## 本機執行
+
+```bash
+npm run dev
+```
+
+## 部署到 GitHub Pages
+
+這個專案是靜態網站，可以直接把 `index.html`、`styles.css`、`app.js` 推到 GitHub，並在 GitHub Pages 選擇部署分支。
+
+如果要用 GitHub Actions，也可以先執行：
+
+```bash
+npm run build
+```
+
+這個專案沒有必要的 build step，直接部署根目錄即可。
+
+## 部署到 Zeabur
+
+1. 將專案推到 GitHub。
+2. 在 Zeabur 建立新服務並選擇此 GitHub repo。
+3. Build Command 可留空，或使用 `npm run build`。
+4. Start Command 使用 `npm run start`。
+
+第一次處理圖片時，瀏覽器會下載 AI 模型檔，之後同一台裝置會比較快。
