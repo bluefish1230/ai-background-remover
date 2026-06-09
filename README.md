@@ -2,6 +2,14 @@
 
 一個可部署到 GitHub Pages 或 Zeabur 的線上 AI 去背工具。圖片在瀏覽器端處理，完成後可以下載透明 PNG。
 
+## 線上網址
+
+GitHub Pages 啟用後，網站會在這裡：
+
+```text
+https://bluefish1230.github.io/ai-background-remover/
+```
+
 ## 本機執行
 
 ```bash
