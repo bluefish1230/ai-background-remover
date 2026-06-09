@@ -18,6 +18,7 @@ self.addEventListener("fetch", (event) => {
       const headers = new Headers(response.headers);
       headers.set("Cross-Origin-Opener-Policy", "same-origin");
       headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+      headers.set("Cache-Control", "no-store");
 
       return new Response(response.body, {
         status: response.status,

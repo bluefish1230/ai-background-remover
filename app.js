@@ -27,6 +27,13 @@ const modelConfig = {
   },
 };
 
+function updateRuntimeStatus() {
+  if (!selectedFile) {
+    const runtimeReady = hasAiRuntime();
+    setStatus(runtimeReady ? "請先選擇一張圖片。" : "AI 環境準備中，若頁面自動重整後仍看到此訊息，請按 Ctrl + F5。", !runtimeReady);
+  }
+}
+
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
   statusEl.classList.toggle("error", isError);
@@ -129,3 +136,5 @@ for (const eventName of ["dragleave", "drop"]) {
 dropZone.addEventListener("drop", (event) => {
   loadFile(event.dataTransfer?.files?.[0]);
 });
+
+updateRuntimeStatus();
