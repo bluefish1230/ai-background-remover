@@ -36,3 +36,5 @@ npm run build
 4. Start Command 使用 `npm run start`。
 
 第一次處理圖片時，瀏覽器會下載 AI 模型檔，之後同一台裝置會比較快。
+
+如果 GitHub Pages 第一次打開後自動重新整理一次，這是正常現象；網站會註冊 service worker 來啟用瀏覽器端 AI 模型需要的跨來源隔離。

@@ -18,7 +18,8 @@ let sourceUrl = null;
 let resultUrl = null;
 
 const modelConfig = {
-  publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.5.0/dist/",
+  publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.6.0/dist/",
+  debug: true,
   progress: (_key, current, total) => {
     if (!total) return;
     const percent = Math.round((current / total) * 100);
@@ -88,7 +89,8 @@ async function removeImageBackground() {
     setStatus(`去背完成，用時 ${seconds} 秒。`);
   } catch (error) {
     console.error(error);
-    setStatus("處理失敗，請換一張較小的圖片或重新整理後再試。", true);
+    const message = error instanceof Error ? error.message : String(error);
+    setStatus(`處理失敗：${message || "請重新整理後再試。"}`, true);
   } finally {
     removeButton.disabled = false;
     toolPanel.classList.remove("is-busy");

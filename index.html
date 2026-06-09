@@ -95,6 +95,20 @@
       </section>
     </main>
 
+    <script>
+      if ("serviceWorker" in navigator && !window.crossOriginIsolated) {
+        navigator.serviceWorker.register("./coi-serviceworker.js").then(() => {
+          return navigator.serviceWorker.ready;
+        }).then(() => {
+          if (!sessionStorage.getItem("coi-serviceworker-reloaded")) {
+            sessionStorage.setItem("coi-serviceworker-reloaded", "true");
+            window.location.reload();
+          }
+        });
+      } else if (window.crossOriginIsolated) {
+        sessionStorage.removeItem("coi-serviceworker-reloaded");
+      }
+    </script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
