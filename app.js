@@ -32,6 +32,10 @@ function setStatus(message, isError = false) {
   statusEl.classList.toggle("error", isError);
 }
 
+function hasAiRuntime() {
+  return window.crossOriginIsolated && typeof SharedArrayBuffer !== "undefined";
+}
+
 function formatBytes(bytes) {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -69,6 +73,11 @@ function loadFile(file) {
 
 async function removeImageBackground() {
   if (!selectedFile) return;
+
+  if (!hasAiRuntime()) {
+    setStatus("AI 執行環境尚未啟用。請重新整理頁面一次，再重新上傳圖片去背。", true);
+    return;
+  }
 
   removeButton.disabled = true;
   toolPanel.classList.add("is-busy");

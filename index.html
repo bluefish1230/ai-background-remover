@@ -96,17 +96,19 @@
     </main>
 
     <script>
-      if ("serviceWorker" in navigator && !window.crossOriginIsolated) {
-        navigator.serviceWorker.register("./coi-serviceworker.js").then(() => {
-          return navigator.serviceWorker.ready;
+      const coiReloadKey = "coi-serviceworker-reloaded-v2";
+
+      if (window.navigator && "serviceWorker" in window.navigator && !window.crossOriginIsolated) {
+        window.navigator.serviceWorker.register("./coi-serviceworker.js", { scope: "./" }).then(() => {
+          return window.navigator.serviceWorker.ready;
         }).then(() => {
-          if (!sessionStorage.getItem("coi-serviceworker-reloaded")) {
-            sessionStorage.setItem("coi-serviceworker-reloaded", "true");
+          if (!sessionStorage.getItem(coiReloadKey)) {
+            sessionStorage.setItem(coiReloadKey, "true");
             window.location.reload();
           }
         });
       } else if (window.crossOriginIsolated) {
-        sessionStorage.removeItem("coi-serviceworker-reloaded");
+        sessionStorage.removeItem(coiReloadKey);
       }
     </script>
     <script type="module" src="./app.js"></script>
