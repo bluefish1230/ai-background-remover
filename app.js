@@ -354,7 +354,7 @@ function loadFile(file) {
   fileMeta.textContent = `${file.name} · ${formatBytes(file.size)}`;
   removeButton.disabled = false;
   resetResult();
-  setStatus("圖片已載入，可以開始去背。");
+  setStatus("圖片已載入。若有多個物件，請先在每個要保留的物件上刷一下，再開始去背。");
 }
 
 async function removeImageBackground() {
@@ -377,10 +377,10 @@ async function removeImageBackground() {
     const focusedWithBrush = focusResultWithBrushMask();
     const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
     if (focusedWithBrush) {
-      publishCanvasResult(editableResultCanvas, `已依照筆刷標記保留物件，用時 ${seconds} 秒。可再用「補回 / 擦除」細修。`);
+      publishCanvasResult(editableResultCanvas, `已依照筆刷標記保留物件，用時 ${seconds} 秒。若多留了相連物件，請用「擦除」細修。`);
       clearMask();
     } else {
-      publishBlobResult(blob, `去背完成，用時 ${seconds} 秒。若抓錯主體，請用「補回 / 擦除」筆刷修正。`);
+      publishBlobResult(blob, `去背完成，用時 ${seconds} 秒。多物件圖片建議先刷要保留的物件，再按開始去背。`);
     }
   } catch (error) {
     console.error(error);

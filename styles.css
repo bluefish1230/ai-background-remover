@@ -295,6 +295,17 @@ svg {
   border-top: 1px solid var(--line);
 }
 
+.brush-help {
+  padding: 10px 12px;
+  border: 1px solid #c9e0dc;
+  border-radius: 8px;
+  color: var(--brand-dark);
+  background: #eef8f5;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
 .brush-tools[hidden] {
   display: none;
 }
