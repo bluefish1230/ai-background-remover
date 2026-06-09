@@ -32,6 +32,9 @@ let sourceImage = null;
 let isPainting = false;
 let brushMode = "paint";
 let maskHasPaint = false;
+let correctionDirty = false;
+const editableResultCanvas = document.createElement("canvas");
+const editableResultCtx = editableResultCanvas.getContext("2d");
 
 const modelConfig = {
   publicPath: new URL("./background-removal-data/", window.location.href).href,
@@ -67,6 +70,9 @@ function formatBytes(bytes) {
 function resetResult() {
   if (resultUrl) URL.revokeObjectURL(resultUrl);
   resultUrl = null;
+  editableResultCanvas.width = 0;
+  editableResultCanvas.height = 0;
+  correctionDirty = false;
   resultPreview.hidden = true;
   resultPreview.removeAttribute("src");
   resultEmpty.hidden = false;
@@ -78,6 +84,7 @@ function resetResult() {
 function clearMask() {
   maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
   maskHasPaint = false;
+  correctionDirty = false;
 }
 
 function setBrushMode(mode) {
@@ -109,6 +116,25 @@ function drawBrushPoint(event) {
   maskCtx.restore();
 
   if (brushMode === "paint") maskHasPaint = true;
+
+  if (!editableResultCanvas.width || !editableResultCanvas.height) return;
+
+  editableResultCtx.save();
+  editableResultCtx.beginPath();
+  editableResultCtx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+  editableResultCtx.clip();
+
+  if (brushMode === "paint") {
+    editableResultCtx.globalCompositeOperation = "source-over";
+    editableResultCtx.drawImage(sourceCanvas, 0, 0);
+  } else {
+    editableResultCtx.globalCompositeOperation = "destination-out";
+    editableResultCtx.fillStyle = "#000";
+    editableResultCtx.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
+  }
+
+  editableResultCtx.restore();
+  correctionDirty = true;
 }
 
 function prepareSourceCanvas(image) {
@@ -126,8 +152,19 @@ function prepareSourceCanvas(image) {
 }
 
 function applyBrushMask() {
+  if (editableResultCanvas.width && editableResultCanvas.height) {
+    if (!correctionDirty) {
+      setStatus("請先用補回或擦除筆刷修正右側結果。", true);
+      return;
+    }
+
+    publishCanvasResult(editableResultCanvas, "筆刷修正已套用，可以下載 PNG。");
+    clearMask();
+    return;
+  }
+
   if (!sourceImage || !maskHasPaint) {
-    setStatus("請先用筆刷塗抹要保留的物件。", true);
+    setStatus("請先按開始去背；若要純手動去背，請用筆刷塗滿要保留的區域。", true);
     return;
   }
 
@@ -146,16 +183,47 @@ function applyBrushMask() {
       return;
     }
 
-    if (resultUrl) URL.revokeObjectURL(resultUrl);
-    resultUrl = URL.createObjectURL(blob);
-    resultPreview.src = resultUrl;
-    resultPreview.hidden = false;
-    resultEmpty.hidden = true;
-    resultMeta.textContent = `PNG · ${formatBytes(blob.size)}`;
-    downloadLink.href = resultUrl;
-    downloadLink.classList.remove("disabled");
-    setStatus("筆刷去背完成，可以下載 PNG。");
+    prepareEditableResult(blob);
+    publishBlobResult(blob, "筆刷去背完成，可以下載 PNG。");
   }, "image/png");
+}
+
+function publishBlobResult(blob, message) {
+  if (resultUrl) URL.revokeObjectURL(resultUrl);
+  resultUrl = URL.createObjectURL(blob);
+  resultPreview.src = resultUrl;
+  resultPreview.hidden = false;
+  resultEmpty.hidden = true;
+  resultMeta.textContent = `PNG · ${formatBytes(blob.size)}`;
+  downloadLink.href = resultUrl;
+  downloadLink.classList.remove("disabled");
+  setStatus(message);
+}
+
+function publishCanvasResult(canvas, message) {
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      setStatus("筆刷修正失敗，請重新塗抹後再試。", true);
+      return;
+    }
+
+    publishBlobResult(blob, message);
+  }, "image/png");
+}
+
+function prepareEditableResult(blob) {
+  const image = new Image();
+  const url = URL.createObjectURL(blob);
+
+  image.onload = () => {
+    editableResultCanvas.width = sourceCanvas.width || image.naturalWidth;
+    editableResultCanvas.height = sourceCanvas.height || image.naturalHeight;
+    editableResultCtx.clearRect(0, 0, editableResultCanvas.width, editableResultCanvas.height);
+    editableResultCtx.drawImage(image, 0, 0, editableResultCanvas.width, editableResultCanvas.height);
+    URL.revokeObjectURL(url);
+  };
+
+  image.src = url;
 }
 
 function loadFile(file) {
@@ -195,15 +263,9 @@ async function removeImageBackground() {
   try {
     const startedAt = performance.now();
     const blob = await removeBackground(selectedFile, modelConfig);
-    resultUrl = URL.createObjectURL(blob);
-    resultPreview.src = resultUrl;
-    resultPreview.hidden = false;
-    resultEmpty.hidden = true;
-    downloadLink.href = resultUrl;
-    downloadLink.classList.remove("disabled");
+    prepareEditableResult(blob);
     const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
-    resultMeta.textContent = `PNG · ${formatBytes(blob.size)}`;
-    setStatus(`去背完成，用時 ${seconds} 秒。`);
+    publishBlobResult(blob, `去背完成，用時 ${seconds} 秒。若抓錯主體，請用「補回 / 擦除」筆刷修正。`);
   } catch (error) {
     console.error(error);
     const message = error instanceof Error ? error.message : String(error);
@@ -247,7 +309,7 @@ paintModeButton.addEventListener("click", () => setBrushMode("paint"));
 eraseModeButton.addEventListener("click", () => setBrushMode("erase"));
 clearMaskButton.addEventListener("click", () => {
   clearMask();
-  setStatus("筆刷已清除，可以重新塗抹。");
+  setStatus("筆刷標記已清除，結果圖不會被還原；可繼續補回或擦除。");
 });
 applyMaskButton.addEventListener("click", applyBrushMask);
 
@@ -266,6 +328,9 @@ maskCanvas.addEventListener("pointermove", (event) => {
 
 for (const eventName of ["pointerup", "pointercancel", "pointerleave"]) {
   maskCanvas.addEventListener(eventName, () => {
+    if (isPainting && correctionDirty) {
+      setStatus("已標記修正區域，按「套用修正」更新右側 PNG。");
+    }
     isPainting = false;
   });
 }
