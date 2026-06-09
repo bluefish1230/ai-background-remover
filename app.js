@@ -18,7 +18,7 @@ let sourceUrl = null;
 let resultUrl = null;
 
 const modelConfig = {
-  publicPath: "./background-removal-data/",
+  publicPath: new URL("./background-removal-data/", window.location.href).href,
   debug: true,
   progress: (_key, current, total) => {
     if (!total) return;
