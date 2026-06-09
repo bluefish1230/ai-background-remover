@@ -64,6 +64,22 @@
             </a>
           </div>
 
+          <div class="brush-tools" id="brush-tools" hidden>
+            <div class="tool-row">
+              <label for="brush-size">筆刷大小</label>
+              <output id="brush-size-value" for="brush-size">34</output>
+            </div>
+            <input id="brush-size" type="range" min="8" max="90" value="34" />
+            <div class="mode-toggle" role="group" aria-label="筆刷模式">
+              <button class="mode-button active" id="paint-mode" type="button">保留</button>
+              <button class="mode-button" id="erase-mode" type="button">擦除</button>
+            </div>
+            <div class="brush-actions">
+              <button class="secondary-button" id="clear-mask-button" type="button">清除筆刷</button>
+              <button class="primary-button" id="apply-mask-button" type="button">套用筆刷去背</button>
+            </div>
+          </div>
+
           <div class="status" id="status" role="status" aria-live="polite">
             請先選擇一張圖片。
           </div>
@@ -76,6 +92,10 @@
               <span id="file-meta">尚未上傳</span>
             </div>
             <div class="image-stage">
+              <div class="canvas-stack" id="source-editor" hidden>
+                <canvas id="source-canvas" aria-label="原始圖片"></canvas>
+                <canvas id="mask-canvas" aria-label="筆刷遮罩"></canvas>
+              </div>
               <img id="source-preview" alt="原始圖片預覽" hidden />
               <div class="empty-state" id="source-empty">等待圖片</div>
             </div>
@@ -113,6 +133,6 @@
         sessionStorage.removeItem(coiReloadKey);
       }
     </script>
-    <script type="module" src="./app.js?v=20260609-5"></script>
+    <script type="module" src="./app.js?v=20260609-6"></script>
   </body>
 </html>

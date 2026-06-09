@@ -12,10 +12,26 @@ const resultEmpty = document.querySelector("#result-empty");
 const fileMeta = document.querySelector("#file-meta");
 const resultMeta = document.querySelector("#result-meta");
 const toolPanel = document.querySelector(".tool-panel");
+const brushTools = document.querySelector("#brush-tools");
+const brushSizeInput = document.querySelector("#brush-size");
+const brushSizeValue = document.querySelector("#brush-size-value");
+const paintModeButton = document.querySelector("#paint-mode");
+const eraseModeButton = document.querySelector("#erase-mode");
+const clearMaskButton = document.querySelector("#clear-mask-button");
+const applyMaskButton = document.querySelector("#apply-mask-button");
+const sourceEditor = document.querySelector("#source-editor");
+const sourceCanvas = document.querySelector("#source-canvas");
+const maskCanvas = document.querySelector("#mask-canvas");
+const sourceCtx = sourceCanvas.getContext("2d");
+const maskCtx = maskCanvas.getContext("2d");
 
 let selectedFile = null;
 let sourceUrl = null;
 let resultUrl = null;
+let sourceImage = null;
+let isPainting = false;
+let brushMode = "paint";
+let maskHasPaint = false;
 
 const modelConfig = {
   publicPath: new URL("./background-removal-data/", window.location.href).href,
@@ -59,6 +75,89 @@ function resetResult() {
   downloadLink.classList.add("disabled");
 }
 
+function clearMask() {
+  maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+  maskHasPaint = false;
+}
+
+function setBrushMode(mode) {
+  brushMode = mode;
+  paintModeButton.classList.toggle("active", mode === "paint");
+  eraseModeButton.classList.toggle("active", mode === "erase");
+}
+
+function canvasPointFromEvent(event) {
+  const rect = maskCanvas.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left) * (maskCanvas.width / rect.width),
+    y: (event.clientY - rect.top) * (maskCanvas.height / rect.height),
+  };
+}
+
+function drawBrushPoint(event) {
+  if (!sourceImage) return;
+
+  const point = canvasPointFromEvent(event);
+  const radius = Number(brushSizeInput.value) / 2;
+
+  maskCtx.save();
+  maskCtx.globalCompositeOperation = brushMode === "paint" ? "source-over" : "destination-out";
+  maskCtx.fillStyle = "#0f8b8d";
+  maskCtx.beginPath();
+  maskCtx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+  maskCtx.fill();
+  maskCtx.restore();
+
+  if (brushMode === "paint") maskHasPaint = true;
+}
+
+function prepareSourceCanvas(image) {
+  sourceCanvas.width = image.naturalWidth;
+  sourceCanvas.height = image.naturalHeight;
+  maskCanvas.width = image.naturalWidth;
+  maskCanvas.height = image.naturalHeight;
+
+  sourceCtx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+  sourceCtx.drawImage(image, 0, 0);
+  clearMask();
+  sourceEditor.hidden = false;
+  sourcePreview.hidden = true;
+  brushTools.hidden = false;
+}
+
+function applyBrushMask() {
+  if (!sourceImage || !maskHasPaint) {
+    setStatus("請先用筆刷塗抹要保留的物件。", true);
+    return;
+  }
+
+  const outputCanvas = document.createElement("canvas");
+  outputCanvas.width = sourceCanvas.width;
+  outputCanvas.height = sourceCanvas.height;
+  const outputCtx = outputCanvas.getContext("2d");
+
+  outputCtx.drawImage(sourceCanvas, 0, 0);
+  outputCtx.globalCompositeOperation = "destination-in";
+  outputCtx.drawImage(maskCanvas, 0, 0);
+
+  outputCanvas.toBlob((blob) => {
+    if (!blob) {
+      setStatus("筆刷去背失敗，請重新塗抹後再試。", true);
+      return;
+    }
+
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    resultUrl = URL.createObjectURL(blob);
+    resultPreview.src = resultUrl;
+    resultPreview.hidden = false;
+    resultEmpty.hidden = true;
+    resultMeta.textContent = `PNG · ${formatBytes(blob.size)}`;
+    downloadLink.href = resultUrl;
+    downloadLink.classList.remove("disabled");
+    setStatus("筆刷去背完成，可以下載 PNG。");
+  }, "image/png");
+}
+
 function loadFile(file) {
   if (!file || !file.type.startsWith("image/")) {
     setStatus("請上傳 JPG、PNG 或 WebP 圖片。", true);
@@ -70,7 +169,9 @@ function loadFile(file) {
   sourceUrl = URL.createObjectURL(file);
 
   sourcePreview.src = sourceUrl;
-  sourcePreview.hidden = false;
+  sourceImage = new Image();
+  sourceImage.onload = () => prepareSourceCanvas(sourceImage);
+  sourceImage.src = sourceUrl;
   sourceEmpty.hidden = true;
   fileMeta.textContent = `${file.name} · ${formatBytes(file.size)}`;
   removeButton.disabled = false;
@@ -136,5 +237,37 @@ for (const eventName of ["dragleave", "drop"]) {
 dropZone.addEventListener("drop", (event) => {
   loadFile(event.dataTransfer?.files?.[0]);
 });
+
+brushSizeInput.addEventListener("input", () => {
+  brushSizeValue.value = brushSizeInput.value;
+  brushSizeValue.textContent = brushSizeInput.value;
+});
+
+paintModeButton.addEventListener("click", () => setBrushMode("paint"));
+eraseModeButton.addEventListener("click", () => setBrushMode("erase"));
+clearMaskButton.addEventListener("click", () => {
+  clearMask();
+  setStatus("筆刷已清除，可以重新塗抹。");
+});
+applyMaskButton.addEventListener("click", applyBrushMask);
+
+maskCanvas.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  isPainting = true;
+  maskCanvas.setPointerCapture(event.pointerId);
+  drawBrushPoint(event);
+});
+
+maskCanvas.addEventListener("pointermove", (event) => {
+  if (!isPainting) return;
+  event.preventDefault();
+  drawBrushPoint(event);
+});
+
+for (const eventName of ["pointerup", "pointercancel", "pointerleave"]) {
+  maskCanvas.addEventListener(eventName, () => {
+    isPainting = false;
+  });
+}
 
 updateRuntimeStatus();
