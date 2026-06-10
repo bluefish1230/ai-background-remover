@@ -250,7 +250,7 @@ function detectObjectsFromResult() {
     if (count >= minPixels) {
       candidates.push({
         rawId,
-        selected: true,
+        selected: false,
         pixels: count,
         bounds: { minX, minY, maxX, maxY },
       });
@@ -277,12 +277,12 @@ function renderObjectButtons() {
   }
 
   objectSummary.textContent = `分析到 ${objectCandidates.length} 個物件。點選縮圖可即時切換，右側預覽會同步更新。`;
-  applyObjectsButton.disabled = false;
+  applyObjectsButton.disabled = true;
 
   for (const candidate of objectCandidates) {
     const button = document.createElement("button");
     const area = `${candidate.bounds.maxX - candidate.bounds.minX + 1} x ${candidate.bounds.maxY - candidate.bounds.minY + 1}`;
-    button.className = "object-button active";
+    button.className = "object-button";
     button.type = "button";
     const meta = document.createElement("div");
     meta.className = "object-meta";
@@ -297,7 +297,7 @@ function renderObjectButtons() {
 
     const state = document.createElement("div");
     state.className = "object-state";
-    state.textContent = "已選取";
+    state.textContent = "未選取";
 
     meta.append(title, detail, state);
 
@@ -307,6 +307,7 @@ function renderObjectButtons() {
       button.classList.toggle("active", candidate.selected);
       state.textContent = candidate.selected ? "已選取" : "未選取";
       refreshSelectionPreview();
+      updateApplyObjectsState();
     });
     objectList.append(button);
   }
@@ -314,12 +315,23 @@ function renderObjectButtons() {
   objectTools.hidden = false;
 }
 
+function updateApplyObjectsState() {
+  applyObjectsButton.disabled = !objectCandidates.some((candidate) => candidate.selected);
+}
+
+function showFullAnalysisResult(message) {
+  if (!baseResultImageData) return;
+
+  editableResultCtx.putImageData(baseResultImageData, 0, 0);
+  publishCanvasResult(editableResultCanvas, message);
+}
+
 function refreshSelectionPreview(message) {
   if (!baseResultImageData || !componentMap || !objectCandidates.length) return false;
 
   const selectedRawIds = getSelectedRawIds();
   if (!selectedRawIds.size) {
-    setStatus("請至少選擇一個要保留的物件。", true);
+    showFullAnalysisResult("目前沒有選取物件。點選左側縮圖後，右側會只顯示選取物件。");
     return false;
   }
 
