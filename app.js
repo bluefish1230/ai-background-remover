@@ -36,7 +36,6 @@ let resultUrl = null;
 let sourceImage = null;
 let isErasing = false;
 let eraseDirty = false;
-let eraseBaseImageData = null;
 let baseResultImageData = null;
 let componentMap = null;
 let objectCandidates = [];
@@ -70,7 +69,6 @@ function resetResult() {
   resultUrl = null;
   editableResultCanvas.width = 0;
   editableResultCanvas.height = 0;
-  eraseBaseImageData = null;
   baseResultImageData = null;
   componentMap = null;
   objectCandidates = [];
@@ -86,15 +84,9 @@ function resetResult() {
   downloadLink.classList.add("disabled");
 }
 
-function clearEraseMarks({ restore = false, message = "已還原本次擦除，可以重新修正。" } = {}) {
-  if (restore && eraseBaseImageData && editableResultCanvas.width && editableResultCanvas.height) {
-    editableResultCtx.putImageData(eraseBaseImageData, 0, 0);
-    publishCanvasResult(editableResultCanvas, message);
-  }
-
+function clearEraseMarks() {
   maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
   eraseDirty = false;
-  eraseBaseImageData = null;
 }
 
 function getSelectedRawIds() {
@@ -386,15 +378,6 @@ function canvasPointFromEvent(event) {
 function eraseResultPoint(event) {
   if (!editableResultCanvas.width || !editableResultCanvas.height) return;
 
-  if (!eraseBaseImageData) {
-    eraseBaseImageData = editableResultCtx.getImageData(
-      0,
-      0,
-      editableResultCanvas.width,
-      editableResultCanvas.height,
-    );
-  }
-
   const point = canvasPointFromEvent(event);
   const radius = Number(brushSizeInput.value) / 2;
 
@@ -405,13 +388,6 @@ function eraseResultPoint(event) {
   maskCtx.arc(point.x, point.y, radius, 0, Math.PI * 2);
   maskCtx.fill();
   maskCtx.restore();
-
-  editableResultCtx.save();
-  editableResultCtx.globalCompositeOperation = "destination-out";
-  editableResultCtx.beginPath();
-  editableResultCtx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-  editableResultCtx.fill();
-  editableResultCtx.restore();
 
   eraseDirty = true;
 }
@@ -434,42 +410,56 @@ function applyEraseCorrection() {
 function resetEraseMarks() {
   maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
   eraseDirty = false;
-  eraseBaseImageData = null;
 }
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function pickNearestBackgroundColor(sourceData, maskData, x, y, radius) {
+function pickNearestBackgroundColor(sourceData, resultData, maskData, x, y, radius) {
   const width = sourceCanvas.width;
   const height = sourceCanvas.height;
 
   if (!width || !height) {
     return [233, 239, 236, 255];
   }
-  const rings = [radius + 6, radius + 12, radius + 18, radius + 24];
+  const rings = [
+    radius + 4,
+    radius + 10,
+    radius + 18,
+    radius + 28,
+    radius + 42,
+    radius + 60,
+    radius + 84,
+  ];
   const samples = [];
 
-  for (const ring of rings) {
-    for (let step = 0; step < 16; step += 1) {
-      const angle = (Math.PI * 2 * step) / 16;
-      const sx = Math.round(clamp(x + Math.cos(angle) * ring, 0, width - 1));
-      const sy = Math.round(clamp(y + Math.sin(angle) * ring, 0, height - 1));
-      const sampleIndex = (sy * width + sx) * 4;
+  const collectSamples = (preferTransparentBackground) => {
+    for (const ring of rings) {
+      const steps = Math.max(24, Math.round(ring * 1.8));
+      for (let step = 0; step < steps; step += 1) {
+        const angle = (Math.PI * 2 * step) / steps;
+        const sx = Math.round(clamp(x + Math.cos(angle) * ring, 0, width - 1));
+        const sy = Math.round(clamp(y + Math.sin(angle) * ring, 0, height - 1));
+        const sampleIndex = (sy * width + sx) * 4;
 
-      if (maskData && maskData[sampleIndex + 3] > 0) continue;
-      if (sourceData[sampleIndex + 3] === 0) continue;
+        if (maskData && maskData[sampleIndex + 3] > 0) continue;
+        if (sourceData[sampleIndex + 3] === 0) continue;
+        if (preferTransparentBackground && resultData[sampleIndex + 3] > 24) continue;
 
-      samples.push([
-        sourceData[sampleIndex],
-        sourceData[sampleIndex + 1],
-        sourceData[sampleIndex + 2],
-      ]);
+        samples.push([
+          sourceData[sampleIndex],
+          sourceData[sampleIndex + 1],
+          sourceData[sampleIndex + 2],
+        ]);
+      }
+
+      if (samples.length >= 10) break;
     }
+  };
 
-    if (samples.length >= 6) break;
-  }
+  collectSamples(true);
+  if (!samples.length) collectSamples(false);
 
   if (!samples.length) {
     const fallbackIndex = (Math.round(y) * width + Math.round(x)) * 4;
@@ -481,19 +471,71 @@ function pickNearestBackgroundColor(sourceData, maskData, x, y, radius) {
     ];
   }
 
-  const totals = samples.reduce((acc, [r, g, b]) => {
+  samples.sort((a, b) => (a[0] + a[1] + a[2]) - (b[0] + b[1] + b[2]));
+  const middleSamples = samples.slice(
+    Math.floor(samples.length * 0.15),
+    Math.max(Math.floor(samples.length * 0.85), 1),
+  );
+
+  const totals = (middleSamples.length ? middleSamples : samples).reduce((acc, [r, g, b]) => {
     acc[0] += r;
     acc[1] += g;
     acc[2] += b;
     return acc;
   }, [0, 0, 0]);
+  const count = middleSamples.length || samples.length;
 
   return [
-    Math.round(totals[0] / samples.length),
-    Math.round(totals[1] / samples.length),
-    Math.round(totals[2] / samples.length),
+    Math.round(totals[0] / count),
+    Math.round(totals[1] / count),
+    Math.round(totals[2] / count),
     255,
   ];
+}
+
+function featherEraseEdges(resultData, maskData, width, height) {
+  const copy = new Uint8ClampedArray(resultData);
+  const directions = [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+  ];
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = (y * width + x) * 4;
+      if (maskData[index + 3] === 0) continue;
+
+      let touchesOutside = false;
+      for (const [dx, dy] of directions) {
+        const neighborIndex = ((y + dy) * width + (x + dx)) * 4;
+        if (maskData[neighborIndex + 3] === 0) {
+          touchesOutside = true;
+          break;
+        }
+      }
+
+      if (!touchesOutside) continue;
+
+      let r = copy[index] * 2;
+      let g = copy[index + 1] * 2;
+      let b = copy[index + 2] * 2;
+      let count = 2;
+
+      for (const [dx, dy] of directions) {
+        const neighborIndex = ((y + dy) * width + (x + dx)) * 4;
+        r += copy[neighborIndex];
+        g += copy[neighborIndex + 1];
+        b += copy[neighborIndex + 2];
+        count += 1;
+      }
+
+      resultData[index] = Math.round(r / count);
+      resultData[index + 1] = Math.round(g / count);
+      resultData[index + 2] = Math.round(b / count);
+    }
+  }
 }
 
 function applySoftEraseFill() {
@@ -503,8 +545,10 @@ function applySoftEraseFill() {
   const height = editableResultCanvas.height;
   const maskImageData = maskCtx.getImageData(0, 0, width, height);
   const sourceImageData = sourceCtx.getImageData(0, 0, width, height);
+  const resultImageData = editableResultCtx.getImageData(0, 0, width, height);
   const maskData = maskImageData.data;
   const sourceData = sourceImageData.data;
+  const resultData = resultImageData.data;
   let hasMarkedPixels = false;
   let minX = width;
   let minY = height;
@@ -528,8 +572,6 @@ function applySoftEraseFill() {
     return false;
   }
 
-  const resultImageData = editableResultCtx.getImageData(0, 0, width, height);
-  const resultData = resultImageData.data;
   const fillRadius = Math.max(4, Math.round(Number(brushSizeInput.value) / 2));
 
   for (let y = minY; y <= maxY; y += 1) {
@@ -537,7 +579,7 @@ function applySoftEraseFill() {
       const index = (y * width + x) * 4;
       if (maskData[index + 3] === 0) continue;
 
-      const [r, g, b, a] = pickNearestBackgroundColor(sourceData, maskData, x, y, fillRadius);
+      const [r, g, b, a] = pickNearestBackgroundColor(sourceData, resultData, maskData, x, y, fillRadius);
       resultData[index] = r;
       resultData[index + 1] = g;
       resultData[index + 2] = b;
@@ -545,6 +587,7 @@ function applySoftEraseFill() {
     }
   }
 
+  featherEraseEdges(resultData, maskData, width, height);
   editableResultCtx.putImageData(resultImageData, 0, 0);
   publishCanvasResult(editableResultCanvas, "擦除已完成，邊緣會盡量以附近背景色融合。");
   resetEraseMarks();
@@ -638,9 +681,10 @@ clearMaskButton.addEventListener("click", () => {
     return;
   }
 
-  applySoftEraseFill();
+  resetEraseMarks();
+  setStatus("已清除擦除標記，結果圖未變更。");
 });
-applyMaskButton.addEventListener("click", applyEraseCorrection);
+applyMaskButton.addEventListener("click", applySoftEraseFill);
 
 maskCanvas.addEventListener("pointerdown", (event) => {
   event.preventDefault();
@@ -658,7 +702,7 @@ maskCanvas.addEventListener("pointermove", (event) => {
 for (const eventName of ["pointerup", "pointercancel", "pointerleave"]) {
   maskCanvas.addEventListener(eventName, () => {
     if (isErasing && eraseDirty) {
-      setStatus("已標記擦除區域，按「套用修正」更新右側 PNG。");
+      setStatus("已標記擦除區域，按「擦除」用背景色融合。");
     }
     isErasing = false;
   });
