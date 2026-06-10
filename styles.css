@@ -287,7 +287,8 @@ svg {
   color: var(--danger);
 }
 
-.brush-tools {
+.brush-tools,
+.object-tools {
   display: grid;
   gap: 12px;
   margin-top: 16px;
@@ -306,8 +307,41 @@ svg {
   line-height: 1.55;
 }
 
-.brush-tools[hidden] {
+.brush-tools[hidden],
+.object-tools[hidden] {
   display: none;
+}
+
+.object-list {
+  display: grid;
+  gap: 8px;
+}
+
+.object-button {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #b9d8d5;
+  border-radius: 8px;
+  color: var(--brand-dark);
+  background: #ffffff;
+  font-weight: 800;
+  text-align: left;
+}
+
+.object-button.active {
+  color: #ffffff;
+  border-color: var(--brand);
+  background: var(--brand);
+}
+
+.object-button span {
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  opacity: 0.82;
 }
 
 .tool-row {
