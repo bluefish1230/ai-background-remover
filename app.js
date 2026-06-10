@@ -36,6 +36,7 @@ let resultUrl = null;
 let sourceImage = null;
 let isErasing = false;
 let eraseDirty = false;
+let eraseBaseImageData = null;
 let baseResultImageData = null;
 let componentMap = null;
 let objectCandidates = [];
@@ -69,6 +70,7 @@ function resetResult() {
   resultUrl = null;
   editableResultCanvas.width = 0;
   editableResultCanvas.height = 0;
+  eraseBaseImageData = null;
   baseResultImageData = null;
   componentMap = null;
   objectCandidates = [];
@@ -84,9 +86,15 @@ function resetResult() {
   downloadLink.classList.add("disabled");
 }
 
-function clearEraseMarks() {
+function clearEraseMarks({ restore = false, message = "已還原本次擦除，可以重新修正。" } = {}) {
+  if (restore && eraseBaseImageData && editableResultCanvas.width && editableResultCanvas.height) {
+    editableResultCtx.putImageData(eraseBaseImageData, 0, 0);
+    publishCanvasResult(editableResultCanvas, message);
+  }
+
   maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
   eraseDirty = false;
+  eraseBaseImageData = null;
 }
 
 function getSelectedRawIds() {
@@ -378,6 +386,15 @@ function canvasPointFromEvent(event) {
 function eraseResultPoint(event) {
   if (!editableResultCanvas.width || !editableResultCanvas.height) return;
 
+  if (!eraseBaseImageData) {
+    eraseBaseImageData = editableResultCtx.getImageData(
+      0,
+      0,
+      editableResultCanvas.width,
+      editableResultCanvas.height,
+    );
+  }
+
   const point = canvasPointFromEvent(event);
   const radius = Number(brushSizeInput.value) / 2;
 
@@ -496,8 +513,12 @@ brushSizeInput.addEventListener("input", () => {
 });
 
 clearMaskButton.addEventListener("click", () => {
-  clearEraseMarks();
-  setStatus("擦除痕跡已清除，結果圖不會還原；可繼續擦除。");
+  if (!eraseDirty) {
+    setStatus("目前沒有需要還原的擦除。");
+    return;
+  }
+
+  clearEraseMarks({ restore: true });
 });
 applyMaskButton.addEventListener("click", applyEraseCorrection);
 
