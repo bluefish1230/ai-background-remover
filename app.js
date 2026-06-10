@@ -89,6 +89,10 @@ function clearEraseMarks() {
   eraseDirty = false;
 }
 
+function getSelectedRawIds() {
+  return new Set(objectCandidates.filter((candidate) => candidate.selected).map((candidate) => candidate.rawId));
+}
+
 function prepareSourceCanvas(image) {
   sourceCanvas.width = image.naturalWidth;
   sourceCanvas.height = image.naturalHeight;
@@ -147,6 +151,41 @@ function prepareEditableResult(blob) {
 
     image.src = url;
   });
+}
+
+function createCheckerboard(ctx, width, height) {
+  const size = 10;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  for (let y = 0; y < height; y += size) {
+    for (let x = 0; x < width; x += size) {
+      ctx.fillStyle = (x / size + y / size) % 2 === 0 ? "#edf2f0" : "#dbe6e2";
+      ctx.fillRect(x, y, size, size);
+    }
+  }
+}
+
+function createObjectThumbnail(candidate) {
+  const thumb = document.createElement("canvas");
+  thumb.width = 84;
+  thumb.height = 84;
+  thumb.className = "object-thumb";
+
+  const ctx = thumb.getContext("2d");
+  const { minX, minY, maxX, maxY } = candidate.bounds;
+  const pad = Math.max(6, Math.round(Math.max(maxX - minX + 1, maxY - minY + 1) * 0.15));
+  const cropX = Math.max(0, minX - pad);
+  const cropY = Math.max(0, minY - pad);
+  const cropW = Math.min(editableResultCanvas.width - cropX, maxX - minX + 1 + pad * 2);
+  const cropH = Math.min(editableResultCanvas.height - cropY, maxY - minY + 1 + pad * 2);
+
+  createCheckerboard(ctx, thumb.width, thumb.height);
+
+  if (cropW > 0 && cropH > 0) {
+    ctx.drawImage(editableResultCanvas, cropX, cropY, cropW, cropH, 0, 0, thumb.width, thumb.height);
+  }
+
+  return thumb;
 }
 
 function detectObjectsFromResult() {
@@ -237,7 +276,7 @@ function renderObjectButtons() {
     return;
   }
 
-  objectSummary.textContent = `分析到 ${objectCandidates.length} 個物件。點選要保留的物件，可複選。`;
+  objectSummary.textContent = `分析到 ${objectCandidates.length} 個物件。點選縮圖可即時切換，右側預覽會同步更新。`;
   applyObjectsButton.disabled = false;
 
   for (const candidate of objectCandidates) {
@@ -245,10 +284,29 @@ function renderObjectButtons() {
     const area = `${candidate.bounds.maxX - candidate.bounds.minX + 1} x ${candidate.bounds.maxY - candidate.bounds.minY + 1}`;
     button.className = "object-button active";
     button.type = "button";
-    button.innerHTML = `${candidate.label}<span>${area}</span>`;
+    const meta = document.createElement("div");
+    meta.className = "object-meta";
+
+    const title = document.createElement("div");
+    title.className = "object-title";
+    title.textContent = candidate.label;
+
+    const detail = document.createElement("div");
+    detail.className = "object-detail";
+    detail.textContent = area;
+
+    const state = document.createElement("div");
+    state.className = "object-state";
+    state.textContent = "已選取";
+
+    meta.append(title, detail, state);
+
+    button.append(createObjectThumbnail(candidate), meta);
     button.addEventListener("click", () => {
       candidate.selected = !candidate.selected;
       button.classList.toggle("active", candidate.selected);
+      state.textContent = candidate.selected ? "已選取" : "未選取";
+      refreshSelectionPreview();
     });
     objectList.append(button);
   }
@@ -256,16 +314,13 @@ function renderObjectButtons() {
   objectTools.hidden = false;
 }
 
-function applySelectedObjects() {
-  if (!baseResultImageData || !componentMap || !objectCandidates.length) {
-    setStatus("請先分析物件。", true);
-    return;
-  }
+function refreshSelectionPreview(message) {
+  if (!baseResultImageData || !componentMap || !objectCandidates.length) return false;
 
-  const selectedRawIds = new Set(objectCandidates.filter((candidate) => candidate.selected).map((candidate) => candidate.rawId));
+  const selectedRawIds = getSelectedRawIds();
   if (!selectedRawIds.size) {
     setStatus("請至少選擇一個要保留的物件。", true);
-    return;
+    return false;
   }
 
   const output = new ImageData(
@@ -281,9 +336,23 @@ function applySelectedObjects() {
   }
 
   editableResultCtx.putImageData(output, 0, 0);
-  clearEraseMarks();
-  publishCanvasResult(editableResultCanvas, "已套用選取物件，可再用擦除筆刷清理邊緣。");
+  publishCanvasResult(
+    editableResultCanvas,
+    message || `已選取 ${selectedRawIds.size} 個物件，右側預覽已更新。`,
+  );
   brushTools.hidden = false;
+  return true;
+}
+
+function applySelectedObjects() {
+  if (!baseResultImageData || !componentMap || !objectCandidates.length) {
+    setStatus("請先分析物件。", true);
+    return;
+  }
+
+  if (refreshSelectionPreview("已套用選取物件，可再用擦除筆刷清理邊緣。")) {
+    clearEraseMarks();
+  }
 }
 
 function canvasPointFromEvent(event) {
@@ -374,7 +443,6 @@ async function analyzeObjects() {
     detectObjectsFromResult();
     renderObjectButtons();
     publishBlobResult(blob, `物件分析完成，用時 ${((performance.now() - startedAt) / 1000).toFixed(1)} 秒。請選擇要保留的物件。`);
-    if (objectCandidates.length) applySelectedObjects();
   } catch (error) {
     console.error(error);
     const message = error instanceof Error ? error.message : String(error);

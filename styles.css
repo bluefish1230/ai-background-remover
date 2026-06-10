@@ -319,16 +319,17 @@ svg {
 
 .object-button {
   display: flex;
-  min-height: 42px;
+  min-height: 104px;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
+  padding: 10px;
   border: 1px solid #b9d8d5;
   border-radius: 8px;
   color: var(--brand-dark);
   background: #ffffff;
   font-weight: 800;
   text-align: left;
+  box-shadow: 0 2px 0 rgba(15, 139, 141, 0.03);
 }
 
 .object-button.active {
@@ -337,11 +338,37 @@ svg {
   background: var(--brand);
 }
 
-.object-button span {
-  color: inherit;
+.object-thumb {
+  flex: 0 0 auto;
+  width: 84px;
+  height: 84px;
+  border: 1px solid rgba(15, 139, 141, 0.18);
+  border-radius: 8px;
+  object-fit: cover;
+  background: #eef5f1;
+}
+
+.object-meta {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.object-title {
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.object-detail,
+.object-state {
   font-size: 0.82rem;
   font-weight: 700;
   opacity: 0.82;
+}
+
+.object-state {
+  font-size: 0.86rem;
+  opacity: 1;
 }
 
 .tool-row {
