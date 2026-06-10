@@ -431,6 +431,126 @@ function applyEraseCorrection() {
   clearEraseMarks();
 }
 
+function resetEraseMarks() {
+  maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+  eraseDirty = false;
+  eraseBaseImageData = null;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function pickNearestBackgroundColor(sourceData, maskData, x, y, radius) {
+  const width = sourceCanvas.width;
+  const height = sourceCanvas.height;
+
+  if (!width || !height) {
+    return [233, 239, 236, 255];
+  }
+  const rings = [radius + 6, radius + 12, radius + 18, radius + 24];
+  const samples = [];
+
+  for (const ring of rings) {
+    for (let step = 0; step < 16; step += 1) {
+      const angle = (Math.PI * 2 * step) / 16;
+      const sx = Math.round(clamp(x + Math.cos(angle) * ring, 0, width - 1));
+      const sy = Math.round(clamp(y + Math.sin(angle) * ring, 0, height - 1));
+      const sampleIndex = (sy * width + sx) * 4;
+
+      if (maskData && maskData[sampleIndex + 3] > 0) continue;
+      if (sourceData[sampleIndex + 3] === 0) continue;
+
+      samples.push([
+        sourceData[sampleIndex],
+        sourceData[sampleIndex + 1],
+        sourceData[sampleIndex + 2],
+      ]);
+    }
+
+    if (samples.length >= 6) break;
+  }
+
+  if (!samples.length) {
+    const fallbackIndex = (Math.round(y) * width + Math.round(x)) * 4;
+    return [
+      sourceData[fallbackIndex] || 233,
+      sourceData[fallbackIndex + 1] || 239,
+      sourceData[fallbackIndex + 2] || 236,
+      255,
+    ];
+  }
+
+  const totals = samples.reduce((acc, [r, g, b]) => {
+    acc[0] += r;
+    acc[1] += g;
+    acc[2] += b;
+    return acc;
+  }, [0, 0, 0]);
+
+  return [
+    Math.round(totals[0] / samples.length),
+    Math.round(totals[1] / samples.length),
+    Math.round(totals[2] / samples.length),
+    255,
+  ];
+}
+
+function applySoftEraseFill() {
+  if (!editableResultCanvas.width || !editableResultCanvas.height) return false;
+
+  const width = editableResultCanvas.width;
+  const height = editableResultCanvas.height;
+  const maskImageData = maskCtx.getImageData(0, 0, width, height);
+  const sourceImageData = sourceCtx.getImageData(0, 0, width, height);
+  const maskData = maskImageData.data;
+  const sourceData = sourceImageData.data;
+  let hasMarkedPixels = false;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let index = 0; index < maskData.length; index += 4) {
+    if (maskData[index + 3] === 0) continue;
+    hasMarkedPixels = true;
+    const pixel = index / 4;
+    const x = pixel % width;
+    const y = Math.floor(pixel / width);
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+
+  if (!hasMarkedPixels) {
+    setStatus("請先用擦除筆刷標記要修掉的區域。", true);
+    return false;
+  }
+
+  const resultImageData = editableResultCtx.getImageData(0, 0, width, height);
+  const resultData = resultImageData.data;
+  const fillRadius = Math.max(4, Math.round(Number(brushSizeInput.value) / 2));
+
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const index = (y * width + x) * 4;
+      if (maskData[index + 3] === 0) continue;
+
+      const [r, g, b, a] = pickNearestBackgroundColor(sourceData, maskData, x, y, fillRadius);
+      resultData[index] = r;
+      resultData[index + 1] = g;
+      resultData[index + 2] = b;
+      resultData[index + 3] = a;
+    }
+  }
+
+  editableResultCtx.putImageData(resultImageData, 0, 0);
+  publishCanvasResult(editableResultCanvas, "擦除已完成，邊緣會盡量以附近背景色融合。");
+  resetEraseMarks();
+  return true;
+}
+
 function loadFile(file) {
   if (!file || !file.type.startsWith("image/")) {
     setStatus("請上傳 JPG、PNG 或 WebP 圖片。", true);
@@ -514,11 +634,11 @@ brushSizeInput.addEventListener("input", () => {
 
 clearMaskButton.addEventListener("click", () => {
   if (!eraseDirty) {
-    setStatus("目前沒有需要還原的擦除。");
+    setStatus("請先用擦除筆刷標記要修掉的區域。", true);
     return;
   }
 
-  clearEraseMarks({ restore: true });
+  applySoftEraseFill();
 });
 applyMaskButton.addEventListener("click", applyEraseCorrection);
 

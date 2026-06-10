@@ -10,7 +10,7 @@
     <title>AI 圖片去背工具</title>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link rel="preconnect" href="https://esm.sh" />
-    <link rel="stylesheet" href="./styles.css?v=20260610-5" />
+    <link rel="stylesheet" href="./styles.css?v=20260610-7" />
   </head>
   <body>
     <main class="app-shell">
@@ -82,7 +82,7 @@
             </div>
             <input id="brush-size" type="range" min="8" max="90" value="34" />
             <div class="brush-actions">
-              <button class="secondary-button" id="clear-mask-button" type="button">還原本次擦除</button>
+              <button class="secondary-button" id="clear-mask-button" type="button">擦除</button>
               <button class="primary-button" id="apply-mask-button" type="button">套用修正</button>
             </div>
           </div>
@@ -123,7 +123,7 @@
     </main>
 
     <script>
-      const coiVersion = "20260610-5";
+      const coiVersion = "20260610-7";
       const coiReloadKey = `coi-serviceworker-reloaded-${coiVersion}`;
 
       if (window.navigator && "serviceWorker" in window.navigator && !window.crossOriginIsolated) {
@@ -140,6 +140,6 @@
         sessionStorage.removeItem(coiReloadKey);
       }
     </script>
-    <script type="module" src="./app.js?v=20260610-5"></script>
+    <script type="module" src="./app.js?v=20260610-7"></script>
   </body>
 </html>
