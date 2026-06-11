@@ -43,6 +43,9 @@ let objectCandidates = [];
 const modelConfig = {
   publicPath: new URL("./background-removal-data/", window.location.href).href,
   debug: true,
+  device: "cpu",
+  model: isMobileLikeBrowser() || !window.crossOriginIsolated ? "small" : "medium",
+  proxyToWorker: false,
   progress: (_key, current, total) => {
     if (!total) return;
     const percent = Math.round((current / total) * 100);
@@ -56,7 +59,22 @@ function setStatus(message, isError = false) {
 }
 
 function hasAiRuntime() {
-  return window.crossOriginIsolated && typeof SharedArrayBuffer !== "undefined";
+  const canvas = document.createElement("canvas");
+  return (
+    typeof WebAssembly !== "undefined" &&
+    typeof createImageBitmap !== "undefined" &&
+    !!canvas.getContext("2d") &&
+    typeof canvas.toBlob === "function"
+  );
+}
+
+function isMobileLikeBrowser() {
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+function getRuntimeHint() {
+  if (window.crossOriginIsolated) return "";
+  return " 目前瀏覽器會使用手機相容模式，速度可能較慢。若仍失敗，請用 Safari 或 Chrome 開啟。";
 }
 
 function formatBytes(bytes) {
@@ -612,21 +630,21 @@ function loadFile(file) {
   fileMeta.textContent = `${file.name} · ${formatBytes(file.size)}`;
   analyzeButton.disabled = false;
   resetResult();
-  setStatus("圖片已載入，按「分析物件」偵測可保留的物件。");
+  setStatus(`圖片已載入，按「分析物件」偵測可保留的物件。${getRuntimeHint()}`);
 }
 
 async function analyzeObjects() {
   if (!selectedFile) return;
 
   if (!hasAiRuntime()) {
-    setStatus("AI 執行環境尚未啟用。請重新整理頁面一次，再重新上傳圖片。", true);
+    setStatus("這個瀏覽器缺少必要的圖片處理能力，請改用 Safari 或 Chrome 開啟。", true);
     return;
   }
 
   analyzeButton.disabled = true;
   toolPanel.classList.add("is-busy");
   resetResult();
-  setStatus("正在分析圖片物件，第一次使用會先下載 AI 模型。");
+  setStatus(`正在分析圖片物件，第一次使用會先下載 AI 模型。${getRuntimeHint()}`);
 
   try {
     const startedAt = performance.now();
@@ -638,7 +656,7 @@ async function analyzeObjects() {
   } catch (error) {
     console.error(error);
     const message = error instanceof Error ? error.message : String(error);
-    setStatus(`處理失敗：${message || "請重新整理後再試。"}`, true);
+    setStatus(`處理失敗：${message || "手機瀏覽器可能不支援此 AI 模型，請用 Safari 或 Chrome 開啟後再試。"}`, true);
   } finally {
     analyzeButton.disabled = false;
     toolPanel.classList.remove("is-busy");
@@ -709,5 +727,7 @@ for (const eventName of ["pointerup", "pointercancel", "pointerleave"]) {
 }
 
 if (!hasAiRuntime()) {
-  setStatus("AI 環境準備中，若頁面自動重整後仍看到此訊息，請按 Ctrl + F5。", true);
+  setStatus("這個瀏覽器缺少必要的圖片處理能力，請改用 Safari 或 Chrome 開啟。", true);
+} else if (!window.crossOriginIsolated) {
+  setStatus("手機相容模式已啟用。若在 LINE 內建瀏覽器失敗，請用 Safari 或 Chrome 開啟。");
 }
